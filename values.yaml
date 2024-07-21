@@ -7,18 +7,21 @@ syncthing:
     image: linuxserver/syncthing
     tag: latest
   service:
-    type: ClusterIP
+    type: NodePort
     ports:
       - port: 22000
         targetPort: 22000
         protocol: TCP
         name: tcp
+        nodeport: 30489
       - port: 22000
         targetPort: 22000
         protocol: UDP
         name: udp
+        nodeport: 30479
       - port: 21027
         targetPort: 21027
+        nodeport: 32752
         protocol: UDP
         name: discovery
   uiservice:

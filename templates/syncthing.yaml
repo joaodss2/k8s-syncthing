@@ -131,6 +131,7 @@ spec:
     - port: {{ .port }}
       targetPort: {{ .targetPort }}
       protocol: {{ .protocol }}
+      nodePort: {{ .nodeport }}
       name: {{ .name }}
     {{- end }}
   selector:
