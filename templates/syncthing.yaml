@@ -66,18 +66,18 @@ spec:
           image: "{{ .Values.syncthing.container.image }}:{{ .Values.syncthing.container.tag }}"
           imagePullPolicy: Always
           ports:
-            - name: disc-tcp
-              containerPort: {{ .Values.syncthing.container.ports.udpandtcp }}
+            - name: http
+              containerPort: 8384
               protocol: TCP
-            - name: disc-udp
-              containerPort: {{ .Values.syncthing.container.ports.udpandtcp }}
-              protocol: UDP  
-            - name: disc2-tcp
-              containerPort: {{ .Values.syncthing.container.ports.udp }}
+            - name: tcp
+              containerPort: 22000
+              protocol: TCP
+            - name: udp
+              containerPort: 22000
               protocol: UDP
-            - name: syncthing-port
-              containerPort: {{ .Values.syncthing.container.ports.ui }}   
-              protocol: TCP
+            - name: discovery
+              containerPort: 21027
+              protocol: UDP
           volumeMounts:
             - name: sync-config
               mountPath: /config
@@ -125,63 +125,32 @@ metadata:
   labels:
     {{- include "syncthing.labels" . | nindent 4 }}
 spec:
-  type: NodePort
+  type: {{ .Values.syncthing.service.type }}
   ports:
-    - name: external-broker
-      port: {{ .Values.syncthing.service.nodePort.port.udp }}
-      targetPort: {{ .Values.syncthing.container.ports.udp }}
-      nodePort: {{ .Values.syncthing.service.nodePort.port.udp }}
-      protocol: TCP
+    {{- range .Values.syncthing.service.ports }}
+    - port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: {{ .protocol }}
+      name: {{ .name }}
+    {{- end }}
   selector:
     app: syncthing
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: syncthing
+  name: syncthing-ui
   labels:
     {{- include "syncthing.labels" . | nindent 4 }}
 spec:
-  type: NodePort
+  type: {{ .Values.syncthing.uiservice.type }}
   ports:
-    - port: {{ .Values.syncthing.service.nodePort.port.udpandtcp }}
-      targetPort: {{ .Values.syncthing.container.ports.udpandtcp }}
-      protocol: UDP
-      name: syncthing-udp-1-port
-      nodePort: {{ .Values.syncthing.service.nodePort.port.udpandtcp }}
+    {{- range .Values.syncthing.uiservice.ports }}
+    - port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: {{ .protocol }}
+      name: {{ .name }}
+    {{- end }}
   selector:
     app: syncthing
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: syncthing
-  labels:
-    {{- include "syncthing.labels" . | nindent 4 }}
-spec:
-  type: NodePort
-  ports:
-    - port: {{ .Values.syncthing.service.nodePort.port.udp }}
-      targetPort: {{ .Values.syncthing.container.ports.udp }}
-      protocol: UDP
-      name: syncthing-ucp-2-port
-      nodePort: {{ .Values.syncthing.service.nodePort.port.udp }}
-  selector:
-    app: syncthing
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: syncthing
-  labels:
-    {{- include "syncthing.labels" . | nindent 4 }}
-spec:
-  type: ClusterIP
-  ports:
-    - port: {{ .Values.syncthing.service.clusterPort.port }}
-      targetPort: {{ .Values.syncthing.container.ports.ui }}
-      protocol: TCP
-      name: syncthing-port
-  selector:
-    app: syncthing    
 {{ end }}

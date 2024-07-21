@@ -4,19 +4,30 @@ syncthing:
   podDistribution: cluster # can be "spread" or "cluster"
   enabled: true
   container:
-    image: lscr.io/linuxserver/syncthing
+    image: linuxserver/syncthing
     tag: latest
-    ports: 
-      udpandtcp: 22000
-      udp: 21027
-      ui: 8384
   service:
-    nodePort:
-      port: 
-        udpandtcp: 32000
-        udp: 31027
-    clusterPort:
-      port: 8384
+    type: ClusterIP
+    ports:
+      - port: 22000
+        targetPort: 22000
+        protocol: TCP
+        name: tcp
+      - port: 22000
+        targetPort: 22000
+        protocol: UDP
+        name: udp
+      - port: 21027
+        targetPort: 21027
+        protocol: UDP
+        name: discovery
+  uiservice:
+    type: LoadBalancer  
+    ports:
+      - port: 8384
+        targetPort: 8384
+        protocol: TCP
+        name: http
   configVolume:
     name: sync-config
     storageClassName: longhorn
