@@ -1,0 +1,35 @@
+syncthing:
+  puid: 1000
+  pgid: 1000
+  podDistribution: cluster # can be "spread" or "cluster"
+  enabled: true
+  container:
+    image: lscr.io/linuxserver/syncthing
+    tag: latest
+    ports: 
+      udpandtcp: 22000
+      udp: 21027
+      ui: 8384
+  service:
+    nodePort:
+      port: 
+        udpandtcp: 32000
+        udp: 31027
+    clusterPort:
+      port: 8384
+  configVolume:
+    name: sync-config
+    storageClassName: longhorn
+    annotations: {}
+    labels: {}
+    accessModes: ReadWriteOnce
+    storage: 10Gi
+    selector: {}
+  syncVolume:
+    name: syncthing
+    storageClassName: longhorn
+    annotations: {}
+    labels: {}
+    accessModes: ReadWriteOnce
+    storage: 10Gi
+    selector: {}  

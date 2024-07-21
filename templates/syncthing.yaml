@@ -1,0 +1,187 @@
+{{ if .Values.syncthing.enabled }}
+---
+### CONFIGMAP
+## INIT-CONTAINER
+---
+apiVersion: v1
+data:
+  config.xml: |
+    <Config>
+      <UrlBase> </UrlBase>
+    </Config>
+  init-syncthing.sh: |
+    #!/bin/bash
+    echo "### Initializing config ###"
+    if [ ! -f /syncthing-config/config.xml ]; then
+      cp -n /init-syncthing/config.xml /syncthing-config/config.xml
+      echo "### No configuration found, intialized with default settings ###"
+    fi
+kind: ConfigMap
+metadata:
+  name: init-syncthing-cm
+---
+## APPLICATION
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: syncthing-config
+data:
+  PGID: "{{ .Values.syncthing.pgid }}"
+  PUID: "{{ .Values.syncthing.puid }}"
+---
+### DEPLOYMENT
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: syncthing
+  labels:
+    {{- include "syncthing.labels" . | nindent 4 }}
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "syncthing.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "syncthing.selectorLabels" . | nindent 8 }}
+        app: syncthing
+    spec:
+      initContainers:
+        - name: config-syncthing
+          image: docker.io/ubuntu:groovy
+          command: ["/init-syncthing/init-syncthing.sh"]
+          volumeMounts:
+            - mountPath: /init-syncthing
+              name: init-files-syncthing
+            - name: {{ .Values.syncthing.configVolume.name }}
+              mountPath: /config 
+      containers:
+        - name: {{ .Chart.Name }}
+          envFrom:
+            - configMapRef:
+                name: syncthing-config
+          image: "{{ .Values.syncthing.container.image }}:{{ .Values.syncthing.container.tag }}"
+          imagePullPolicy: Always
+          ports:
+            - name: disc-tcp
+              containerPort: {{ .Values.syncthing.container.ports.udpandtcp }}
+              protocol: TCP
+            - name: disc-udp
+              containerPort: {{ .Values.syncthing.container.ports.udpandtcp }}
+              protocol: UDP  
+            - name: disc2-tcp
+              containerPort: {{ .Values.syncthing.container.ports.udp }}
+              protocol: UDP
+            - name: syncthing-port
+              containerPort: {{ .Values.syncthing.container.ports.ui }}   
+              protocol: TCP
+          volumeMounts:
+            - name: sync-config
+              mountPath: /config
+            - name: syncthing
+              mountPath: "/sync"
+      volumes:
+        - name: {{ .Values.syncthing.configVolume.name }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.syncthing.configVolume.name }}
+        - name: {{ .Values.syncthing.syncVolume.name }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.syncthing.syncVolume.name }}
+        - name: init-files-syncthing
+          configMap:
+            defaultMode: 493
+            name: init-syncthing-cm
+      {{- if eq .Values.syncthing.podDistribution "cluster" }}
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/instance
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+            weight: 100
+      {{- else if eq .Values.syncthing.podDistribution "spread" }}
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: "kubernetes.io/hostname"
+        whenUnsatisfiable: "ScheduleAnyway"
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/instance: {{ .Release.Name }}
+      {{- end }}
+---
+### SERVICES
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing
+  labels:
+    {{- include "syncthing.labels" . | nindent 4 }}
+spec:
+  type: NodePort
+  ports:
+    - name: external-broker
+      port: {{ .Values.syncthing.service.nodePort.port.udp }}
+      targetPort: {{ .Values.syncthing.container.ports.udp }}
+      nodePort: {{ .Values.syncthing.service.nodePort.port.udp }}
+      protocol: TCP
+  selector:
+    app: syncthing
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing
+  labels:
+    {{- include "syncthing.labels" . | nindent 4 }}
+spec:
+  type: NodePort
+  ports:
+    - port: {{ .Values.syncthing.service.nodePort.port.udpandtcp }}
+      targetPort: {{ .Values.syncthing.container.ports.udpandtcp }}
+      protocol: UDP
+      name: syncthing-udp-1-port
+      nodePort: {{ .Values.syncthing.service.nodePort.port.udpandtcp }}
+  selector:
+    app: syncthing
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing
+  labels:
+    {{- include "syncthing.labels" . | nindent 4 }}
+spec:
+  type: NodePort
+  ports:
+    - port: {{ .Values.syncthing.service.nodePort.port.udp }}
+      targetPort: {{ .Values.syncthing.container.ports.udp }}
+      protocol: UDP
+      name: syncthing-ucp-2-port
+      nodePort: {{ .Values.syncthing.service.nodePort.port.udp }}
+  selector:
+    app: syncthing
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing
+  labels:
+    {{- include "syncthing.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.syncthing.service.clusterPort.port }}
+      targetPort: {{ .Values.syncthing.container.ports.ui }}
+      protocol: TCP
+      name: syncthing-port
+  selector:
+    app: syncthing    
+{{ end }}
